@@ -112,6 +112,10 @@
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
         
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+        }
+        
         table {
             width: 100%;
             border-collapse: collapse;
@@ -146,6 +150,15 @@
         }
         .currency { color: #28a745; font-weight: 600; }
         .percentage { color: #6f42c1; font-weight: 600; }
+        
+        .custom-stock {
+            background: #fff3cd !important;
+        }
+        
+        .custom-stock .symbol {
+            background: #ffc107;
+            color: white;
+        }
         
         .summary {
             display: grid;
@@ -287,13 +300,81 @@
             border-radius: 10px;
             margin: 20px 0;
         }
+        
+        .custom-stocks-section {
+            background: linear-gradient(135deg, #ffeaa7, #ffd89b);
+            padding: 25px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .custom-stocks-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .add-stock-form {
+            display: grid;
+            grid-template-columns: 2fr 2fr 1fr auto;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: end;
+        }
+        
+        .add-stock-form input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        
+        .add-stock-form label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .custom-stocks-list {
+            margin-top: 15px;
+        }
+        
+        .custom-stock-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .custom-stock-info {
+            flex: 1;
+        }
+        
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .remove-btn:hover {
+            background: #c82333;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>QQQ Top 10 Investment Calculator</h1>
-            <p>Based on actual Invesco QQQ Trust weightings</p>
+            <p>Based on actual Invesco QQQ Trust weightings + Custom Stocks</p>
         </div>
         
         <div class="tabs">
@@ -324,6 +405,30 @@
                     <button class="btn" id="calculateBtn">Calculate Allocations</button>
                 </div>
                 
+                <!-- CUSTOM STOCKS SECTION -->
+                <div class="custom-stocks-section">
+                    <h3>➕ Add Custom Stocks</h3>
+                    <p style="margin-bottom: 15px; color: #666;">Add your own stocks with custom weightings (these will be added on top of the QQQ top 10)</p>
+                    
+                    <div class="add-stock-form">
+                        <div>
+                            <label>Stock Symbol</label>
+                            <input type="text" id="customSymbol" placeholder="e.g., IBIT" style="text-transform: uppercase;">
+                        </div>
+                        <div>
+                            <label>Company Name</label>
+                            <input type="text" id="customName" placeholder="e.g., iShares Bitcoin Trust">
+                        </div>
+                        <div>
+                            <label>Weight %</label>
+                            <input type="number" id="customWeight" placeholder="5.0" min="0" step="0.01">
+                        </div>
+                        <button class="btn btn-secondary" id="addCustomBtn">Add Stock</button>
+                    </div>
+                    
+                    <div id="customStocksList" class="custom-stocks-list"></div>
+                </div>
+                
                 <div id="resultsTable"></div>
                 
                 <div class="summary">
@@ -332,18 +437,18 @@
                         <div class="value" id="totalDisplay">$10,000</div>
                     </div>
                     <div class="summary-card">
-                        <h3>Number of Companies</h3>
-                        <div class="value">10</div>
+                        <h3>Number of Stocks</h3>
+                        <div class="value" id="stockCount">10</div>
                     </div>
                     <div class="summary-card">
-                        <h3>QQQ Top 10 Weight</h3>
-                        <div class="value">53.41%</div>
+                        <h3>Total Weight</h3>
+                        <div class="value" id="totalWeight">53.41%</div>
                     </div>
                 </div>
                 
                 <div class="note">
-                    <strong>Note:</strong> These are the actual top 10 holdings from the QQQ ETF. 
-                    Alphabet combines GOOGL (2.22%) and GOOG (0.82%). Data as of August 2025.
+                    <strong>Note:</strong> The top 10 QQQ holdings are always included. Custom stocks (highlighted in yellow) are added on top with your specified weights. 
+                    Custom stocks are saved in your browser and will persist between sessions.
                 </div>
             </div>
             
@@ -367,7 +472,7 @@
                 
                 <div id="manualArea" class="upload-box" style="display: none;">
                     <h3>Enter Your Current Holdings</h3>
-                    <p>Enter the dollar amount for each stock</p>
+                    <p>Enter the dollar amount for each stock (including custom stocks)</p>
                     <div class="manual-grid" id="manualGrid"></div>
                     <button class="btn" id="rebalanceCalcBtn">Calculate Rebalancing</button>
                 </div>
@@ -416,7 +521,7 @@
                 <div id="marketData"></div>
                 <div class="note">
                     <strong>Market Data View:</strong> This shows the top 20 QQQ holdings. 
-                    The Investment Calculator uses only the top 10 companies.
+                    The Investment Calculator uses the top 10 plus any custom stocks you've added.
                 </div>
             </div>
         </div>
@@ -424,34 +529,131 @@
 
 <script>
 // DATA
-const stocks = [
-    {rank: 1, name: "NVIDIA Corporation", symbol: "NVDA", weight: 10.16},
-    {rank: 2, name: "Microsoft Corporation", symbol: "MSFT", weight: 9.21},
-    {rank: 3, name: "Apple Inc.", symbol: "AAPL", weight: 7.03},
-    {rank: 4, name: "Broadcom Inc.", symbol: "AVGO", weight: 5.36},
-    {rank: 5, name: "Amazon.com Inc.", symbol: "AMZN", weight: 5.20},
-    {rank: 6, name: "Meta Platforms Inc.", symbol: "META", weight: 4.83},
-    {rank: 7, name: "Netflix Inc.", symbol: "NFLX", weight: 3.23},
-    {rank: 8, name: "Alphabet Inc. (Combined)", symbol: "GOOGL/GOOG", weight: 3.04},
-    {rank: 9, name: "Tesla Inc.", symbol: "TSLA", weight: 2.97},
-    {rank: 10, name: "Costco Wholesale Corp.", symbol: "COST", weight: 2.38}
+const baseStocks = [
+    {rank: 1, name: "NVIDIA Corporation", symbol: "NVDA", weight: 10.16, isCustom: false},
+    {rank: 2, name: "Microsoft Corporation", symbol: "MSFT", weight: 9.21, isCustom: false},
+    {rank: 3, name: "Apple Inc.", symbol: "AAPL", weight: 7.03, isCustom: false},
+    {rank: 4, name: "Broadcom Inc.", symbol: "AVGO", weight: 5.36, isCustom: false},
+    {rank: 5, name: "Amazon.com Inc.", symbol: "AMZN", weight: 5.20, isCustom: false},
+    {rank: 6, name: "Meta Platforms Inc.", symbol: "META", weight: 4.83, isCustom: false},
+    {rank: 7, name: "Netflix Inc.", symbol: "NFLX", weight: 3.23, isCustom: false},
+    {rank: 8, name: "Alphabet Inc. (Combined)", symbol: "GOOGL/GOOG", weight: 3.04, isCustom: false},
+    {rank: 9, name: "Tesla Inc.", symbol: "TSLA", weight: 2.97, isCustom: false},
+    {rank: 10, name: "Costco Wholesale Corp.", symbol: "COST", weight: 2.38, isCustom: false}
 ];
 
 const top20 = [
-    ...stocks,
-    {rank: 11, name: "Palantir Technologies Inc.", symbol: "PLTR", weight: 1.89},
-    {rank: 12, name: "Advanced Micro Devices Inc.", symbol: "AMD", weight: 1.74},
-    {rank: 13, name: "T-Mobile US Inc.", symbol: "TMUS", weight: 1.61},
-    {rank: 14, name: "Cisco Systems Inc.", symbol: "CSCO", weight: 1.49},
-    {rank: 15, name: "Linde PLC", symbol: "LIN", weight: 1.43},
-    {rank: 16, name: "Intuit Inc.", symbol: "INTU", weight: 1.41},
-    {rank: 17, name: "PepsiCo Inc.", symbol: "PEP", weight: 1.38},
-    {rank: 18, name: "Booking Holdings Inc.", symbol: "BKNG", weight: 1.35},
-    {rank: 19, name: "Intuitive Surgical Inc.", symbol: "ISRG", weight: 1.32},
-    {rank: 20, name: "Texas Instruments Inc.", symbol: "TXN", weight: 1.28}
+    ...baseStocks,
+    {rank: 11, name: "Palantir Technologies Inc.", symbol: "PLTR", weight: 1.89, isCustom: false},
+    {rank: 12, name: "Advanced Micro Devices Inc.", symbol: "AMD", weight: 1.74, isCustom: false},
+    {rank: 13, name: "T-Mobile US Inc.", symbol: "TMUS", weight: 1.61, isCustom: false},
+    {rank: 14, name: "Cisco Systems Inc.", symbol: "CSCO", weight: 1.49, isCustom: false},
+    {rank: 15, name: "Linde PLC", symbol: "LIN", weight: 1.43, isCustom: false},
+    {rank: 16, name: "Intuit Inc.", symbol: "INTU", weight: 1.41, isCustom: false},
+    {rank: 17, name: "PepsiCo Inc.", symbol: "PEP", weight: 1.38, isCustom: false},
+    {rank: 18, name: "Booking Holdings Inc.", symbol: "BKNG", weight: 1.35, isCustom: false},
+    {rank: 19, name: "Intuitive Surgical Inc.", symbol: "ISRG", weight: 1.32, isCustom: false},
+    {rank: 20, name: "Texas Instruments Inc.", symbol: "TXN", weight: 1.28, isCustom: false}
 ];
 
+let customStocks = [];
 let holdings = {};
+
+// LOAD CUSTOM STOCKS FROM STORAGE
+function loadCustomStocks() {
+    try {
+        const saved = localStorage.getItem('customStocks');
+        if (saved) {
+            customStocks = JSON.parse(saved);
+            renderCustomStocksList();
+        }
+    } catch (e) {
+        console.error('Error loading custom stocks:', e);
+    }
+}
+
+// SAVE CUSTOM STOCKS TO STORAGE
+function saveCustomStocks() {
+    try {
+        localStorage.setItem('customStocks', JSON.stringify(customStocks));
+    } catch (e) {
+        console.error('Error saving custom stocks:', e);
+    }
+}
+
+// GET ALL STOCKS (BASE + CUSTOM)
+function getAllStocks() {
+    return [...baseStocks, ...customStocks];
+}
+
+// ADD CUSTOM STOCK
+function addCustomStock() {
+    const symbol = document.getElementById('customSymbol').value.trim().toUpperCase();
+    const name = document.getElementById('customName').value.trim();
+    const weight = parseFloat(document.getElementById('customWeight').value);
+    
+    if (!symbol || !name || isNaN(weight) || weight <= 0) {
+        alert('Please fill in all fields with valid values');
+        return;
+    }
+    
+    // Check if symbol already exists
+    const allStocks = getAllStocks();
+    if (allStocks.some(s => s.symbol === symbol)) {
+        alert('This stock symbol already exists!');
+        return;
+    }
+    
+    customStocks.push({
+        rank: baseStocks.length + customStocks.length + 1,
+        name: name,
+        symbol: symbol,
+        weight: weight,
+        isCustom: true
+    });
+    
+    saveCustomStocks();
+    renderCustomStocksList();
+    
+    // Clear form
+    document.getElementById('customSymbol').value = '';
+    document.getElementById('customName').value = '';
+    document.getElementById('customWeight').value = '';
+    
+    // Recalculate if on calculator page
+    calculateAllocations();
+}
+
+// REMOVE CUSTOM STOCK
+function removeCustomStock(symbol) {
+    customStocks = customStocks.filter(s => s.symbol !== symbol);
+    saveCustomStocks();
+    renderCustomStocksList();
+    calculateAllocations();
+}
+
+// RENDER CUSTOM STOCKS LIST
+function renderCustomStocksList() {
+    const container = document.getElementById('customStocksList');
+    
+    if (customStocks.length === 0) {
+        container.innerHTML = '<p style="color: #666; text-align: center;">No custom stocks added yet</p>';
+        return;
+    }
+    
+    let html = '';
+    customStocks.forEach(stock => {
+        html += `<div class="custom-stock-item">
+            <div class="custom-stock-info">
+                <strong>${stock.symbol}</strong> - ${stock.name} 
+                <span style="color: #6f42c1; font-weight: 600;">(${stock.weight.toFixed(2)}%)</span>
+            </div>
+            <button class="remove-btn" onclick="removeCustomStock('${stock.symbol}')">Remove</button>
+        </div>`;
+    });
+    
+    container.innerHTML = html;
+}
 
 // TAB SWITCHING
 document.querySelectorAll('.tab').forEach(tab => {
@@ -473,6 +675,7 @@ function calculateAllocations() {
     const amount = parseFloat(document.getElementById('amount').value) || 0;
     const mode = document.querySelector('input[name="mode"]:checked').value;
     
+    const stocks = getAllStocks();
     const totalWeight = stocks.reduce((sum, s) => sum + s.weight, 0);
     const scale = mode === 'scaled' ? 100 / totalWeight : 1;
     
@@ -488,10 +691,10 @@ function calculateAllocations() {
     let i = 0;
     while (current !== target && i < 1000) {
         if (current < target) {
-            allocations[i % 10].dollars++;
+            allocations[i % allocations.length].dollars++;
             current++;
-        } else if (allocations[i % 10].dollars > 0) {
-            allocations[i % 10].dollars--;
+        } else if (allocations[i % allocations.length].dollars > 0) {
+            allocations[i % allocations.length].dollars--;
             current--;
         }
         i++;
@@ -502,8 +705,9 @@ function calculateAllocations() {
     let total = 0;
     allocations.forEach(a => {
         total += a.dollars;
-        html += `<tr>
-            <td class="rank">${a.rank}</td>
+        const rowClass = a.isCustom ? 'custom-stock' : '';
+        html += `<tr class="${rowClass}">
+            <td class="rank">${a.rank}${a.isCustom ? ' ⭐' : ''}</td>
             <td class="company">${a.name}</td>
             <td><span class="symbol">${a.symbol}</span></td>
             <td class="percentage">${a.weight.toFixed(2)}%</td>
@@ -514,11 +718,13 @@ function calculateAllocations() {
     
     html += `<div class="total-box">
         <div><strong>Total Allocated: <span class="amount">$${total.toLocaleString()}</span></strong></div>
-        <div style="margin-top: 10px; color: #666;">${mode === 'scaled' ? '✅ Weights scaled to 100%' : '📊 Using actual QQQ weights'}</div>
+        <div style="margin-top: 10px; color: #666;">${mode === 'scaled' ? '✅ Weights scaled to 100%' : '📊 Using actual weights'}</div>
     </div>`;
     
     document.getElementById('resultsTable').innerHTML = html;
     document.getElementById('totalDisplay').textContent = '$' + amount.toLocaleString();
+    document.getElementById('stockCount').textContent = stocks.length;
+    document.getElementById('totalWeight').textContent = totalWeight.toFixed(2) + '%';
 }
 
 // MARKET DATA
@@ -535,12 +741,13 @@ function showMarketData() {
     });
     html += '</tbody></table>';
     
-    const top10Total = stocks.reduce((sum, s) => sum + s.weight, 0);
+    const top10Total = baseStocks.reduce((sum, s) => sum + s.weight, 0);
     const top20Total = top20.reduce((sum, s) => sum + s.weight, 0);
     
     html += `<div class="summary">
         <div class="summary-card"><h3>Top 10 Weight</h3><div class="value">${top10Total.toFixed(2)}%</div></div>
         <div class="summary-card"><h3>Top 20 Weight</h3><div class="value">${top20Total.toFixed(2)}%</div></div>
+        <div class="summary-card"><h3>Custom Stocks</h3><div class="value">${customStocks.length}</div></div>
     </div>`;
     
     document.getElementById('marketData').innerHTML = html;
@@ -549,10 +756,12 @@ function showMarketData() {
 // REBALANCING SETUP
 function setupManualEntry() {
     let html = '';
+    const stocks = getAllStocks();
     stocks.forEach(s => {
         const sym = s.symbol.split('/')[0];
-        html += `<div class="stock-field">
-            <label>${s.symbol}</label>
+        const customClass = s.isCustom ? 'style="background: #fff3cd;"' : '';
+        html += `<div class="stock-field" ${customClass}>
+            <label>${s.symbol}${s.isCustom ? ' ⭐' : ''}</label>
             <input type="number" id="hold_${sym}" placeholder="$0.00" min="0" step="0.01">
         </div>`;
     });
@@ -577,6 +786,8 @@ document.getElementById('manualBtn').addEventListener('click', function() {
 // CALCULATE REBALANCING
 function calculateRebalancing() {
     holdings = {};
+    const stocks = getAllStocks();
+    
     stocks.forEach(s => {
         const sym = s.symbol.split('/')[0];
         const input = document.getElementById('hold_' + sym);
@@ -612,21 +823,22 @@ function calculateRebalancing() {
             actionText = 'Hold';
             actionClass = 'action-hold';
         } else if (action > 0) {
-            actionText = `Buy $${action.toFixed(2)}`;
+            actionText = `Buy ${action.toFixed(2)}`;
             actionClass = 'action-buy';
             totalBuy += action;
         } else {
-            actionText = `Sell $${Math.abs(action).toFixed(2)}`;
+            actionText = `Sell ${Math.abs(action).toFixed(2)}`;
             actionClass = 'action-sell';
             totalSell += Math.abs(action);
         }
         
-        html += `<tr>
-            <td class="company">${s.name}</td>
+        const rowClass = s.isCustom ? 'custom-stock' : '';
+        html += `<tr class="${rowClass}">
+            <td class="company">${s.name}${s.isCustom ? ' ⭐' : ''}</td>
             <td><span class="symbol">${s.symbol}</span></td>
             <td class="percentage">${weight.toFixed(2)}%</td>
-            <td class="currency">$${current.toFixed(2)}</td>
-            <td class="currency">$${target.toFixed(2)}</td>
+            <td class="currency">${current.toFixed(2)}</td>
+            <td class="currency">${target.toFixed(2)}</td>
             <td class="${actionClass}">${actionText}</td>
         </tr>`;
     });
@@ -634,16 +846,16 @@ function calculateRebalancing() {
     html += '</tbody></table>';
     
     html += `<div class="summary">
-        <div class="summary-card"><h3>Current Value</h3><div class="value">$${currentTotal.toFixed(2)}</div></div>
-        <div class="summary-card"><h3>Target Value</h3><div class="value">$${targetTotal.toFixed(2)}</div></div>
-        <div class="summary-card"><h3>Total to Buy</h3><div class="value">$${totalBuy.toFixed(2)}</div></div>
-        <div class="summary-card"><h3>Total to Sell</h3><div class="value">$${totalSell.toFixed(2)}</div></div>
+        <div class="summary-card"><h3>Current Value</h3><div class="value">${currentTotal.toFixed(2)}</div></div>
+        <div class="summary-card"><h3>Target Value</h3><div class="value">${targetTotal.toFixed(2)}</div></div>
+        <div class="summary-card"><h3>Total to Buy</h3><div class="value">${totalBuy.toFixed(2)}</div></div>
+        <div class="summary-card"><h3>Total to Sell</h3><div class="value">${totalSell.toFixed(2)}</div></div>
     </div>`;
     
     html += `<div class="note">
         <strong>Strategy:</strong><br>
-        ${investType === 'total' ? `🎯 Rebalancing to $${targetTotal.toFixed(2)}` : `💰 Adding $${amount.toFixed(2)}`}<br>
-        ${mode === 'scaled' ? '✅ Weights scaled to 100%' : '📊 Using actual QQQ weights'}
+        ${investType === 'total' ? `🎯 Rebalancing to ${targetTotal.toFixed(2)}` : `💰 Adding ${amount.toFixed(2)}`}<br>
+        ${mode === 'scaled' ? '✅ Weights scaled to 100%' : '📊 Using actual weights'}
     </div>`;
     
     document.getElementById('rebalanceResults').innerHTML = html;
@@ -694,6 +906,7 @@ function handleFileUpload(e) {
 function parseOCRText(text) {
     holdings = {};
     const lines = text.split('\n');
+    const stocks = getAllStocks();
     
     stocks.forEach(stock => {
         const symbols = stock.symbol.split('/');
@@ -740,8 +953,15 @@ function parseOCRText(text) {
 document.getElementById('calculateBtn').addEventListener('click', calculateAllocations);
 document.getElementById('rebalanceCalcBtn').addEventListener('click', calculateRebalancing);
 document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+document.getElementById('addCustomBtn').addEventListener('click', addCustomStock);
+
+// Allow Enter key to add custom stock
+document.getElementById('customWeight').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') addCustomStock();
+});
 
 // INITIALIZE
+loadCustomStocks();
 calculateAllocations();
 </script>
 </body>
